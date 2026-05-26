@@ -1,0 +1,13 @@
+# 認証情報（絶対に追跡しない）
+.env
+
+# Python 仮想環境・キャッシュ
+.venv/
+__pycache__/
+*.pyc
+
+# 生成物
+output/
+
+# OS
+.DS_Store
