@@ -2,7 +2,7 @@
 GPT Image (OpenAI 画像生成) 基盤スクリプト
 
 使用モデル:
-  - gpt-image-1  (OpenAI 画像生成: 高品質・指示追従に強い)
+  - gpt-image-2  (OpenAI 画像生成: 高品質・指示追従に強い)
 
 呼び出し方は gemini-image/generate.py と揃えてある（generate_image / edit_image）。
 """
@@ -39,7 +39,7 @@ def _save(data, prefix: str) -> list[Path]:
 
 def generate_image(
     prompt: str,
-    model: str = "gpt-image-1",
+    model: str = "gpt-image-2",
     size: str = "1024x1024",
     quality: str = "high",
     n: int = 1,
@@ -71,7 +71,7 @@ def generate_image(
 def edit_image(
     prompt: str,
     input_image_path: str | Path,
-    model: str = "gpt-image-1",
+    model: str = "gpt-image-2",
     size: str = "1024x1024",
     quality: str = "high",
     filename_prefix: str = "edit",

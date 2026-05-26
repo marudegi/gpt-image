@@ -1,6 +1,6 @@
 # GPT Image 画像生成基盤
 
-OpenAI の `gpt-image-1` を使った画像生成・編集の基盤スクリプトです。
+OpenAI の `gpt-image-2` を使った画像生成・編集の基盤スクリプトです。
 呼び出し方は隣の `gemini-image` と揃えてあります（`generate_image` / `edit_image`）。
 
 ## セットアップ
@@ -44,7 +44,7 @@ CLI で単発実行（動作確認サンプル）:
 |---|---|
 | `size` | `1024x1024`(正方) / `1536x1024`(横) / `1024x1536`(縦) / `auto` |
 | `quality` | `low` / `medium` / `high` / `auto` |
-| `model` | `gpt-image-1`（既定）。新モデルが出たらここを差し替え |
+| `model` | `gpt-image-2`（既定）。新モデルが出たらここを差し替え |
 
 ## 出力
 
