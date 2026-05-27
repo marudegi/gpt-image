@@ -15,14 +15,23 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+load_dotenv(Path(__file__).parent / ".env")
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+# 散発的なAPIストール対策：タイムアウト（秒）＋自動リトライ。環境変数で上書き可。
+DEFAULT_TIMEOUT_S = float(os.environ.get("OPENAI_TIMEOUT_S", "180"))
+MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "3"))
+
 
 def _client() -> OpenAI:
-    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    # timeout 超過時は OpenAI SDK が max_retries の範囲で自動再試行する
+    return OpenAI(
+        api_key=os.environ["OPENAI_API_KEY"],
+        timeout=DEFAULT_TIMEOUT_S,
+        max_retries=MAX_RETRIES,
+    )
 
 
 def _save(data, prefix: str) -> list[Path]:
