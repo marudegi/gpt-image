@@ -9,5 +9,8 @@ __pycache__/
 # 生成物
 output/
 
+# 実行ログ
+*.log
+
 # OS
 .DS_Store
