@@ -1,6 +1,6 @@
 # GPT Image 画像生成基盤
 
-OpenAI の `gpt-image-2` を使った画像生成・編集の基盤スクリプトです。
+OpenAI の `gpt-image-2`（既定）／`gpt-image-2.5-flare`／`gpt-image-2.5-sunburst` を使った画像生成・編集の基盤スクリプトです。
 呼び出し方は隣の `gemini-image` と揃えてあります
 （`generate_image` / `edit_image`、`output_dir` / `save_prompt` / `filename_prefix`）。
 検索グラウンディング付き生成（`generate_with_search`）は gemini-image 側のみです。
@@ -50,14 +50,24 @@ CLI で単発実行（動作確認サンプル）:
 | 項目 | 指定値 |
 |---|---|
 | `size` | プリセット名：`16:9`（既定＝2048x1152）／`slide`（＝2112x1280、PPT 30cm×18.2cm 全面貼付用）／`16:10`（＝2048x1280）／`3:2`（＝1536x1024）／`1:1`／`9:16`／`4:3`／`21:9` ほか。任意の `WIDTHxHEIGHT`（**16の倍数**・比率1:3〜3:1・総ピクセル数 655,360〜8,294,400・最大3840x2160）や `auto` も可 |
-| `quality` | `low` / `medium` / `high`（既定） / `auto` |
+| `quality` | `low` / `medium` / `high`（既定） / `auto`。gpt-image-2.5 系のみ `xhigh` / `max` も可（高コスト） |
 | `n` | 生成枚数 1〜10 |
-| `model` | `gpt-image-2`（既定）。任意解像度は gpt-image-2 系のみ（gpt-image-1 は固定3サイズ＋auto） |
+| `model` | `gpt-image-2`（既定。`.env` の `OPENAI_IMAGE_MODEL` で変更可）／`gpt-image-2.5-flare`／`gpt-image-2.5-sunburst`。任意解像度は gpt-image-2 系（2.5 含む）のみ（gpt-image-1 は固定3サイズ＋auto） |
 | `output_dir` | 出力先。案件向けは依頼元の関連Dirを渡す（`~` 展開対応）。未指定なら `output/` |
 | `save_prompt` | 既定 True。画像と同名の `.md` にプロンプト・サイズ・実寸を記録 |
 | `filename_prefix` | 保存ファイル名の接頭辞（日時は自動付与） |
+| `background` | キーワード指定。`transparent` / `opaque` / `auto`。未指定なら API 既定。透過は gpt-image-2.5 系で正式対応、gpt-image-2 は preview |
+| `input_fidelity` | `edit_image` のみ・キーワード指定。`high` / `low`。対応モデルのみ有効（gpt-image-2 は無視） |
 
-制約（gpt-image-2）：透過背景（`background="transparent"`）と `input_fidelity` は非対応。
+### モデルの選び方（2026-09 時点）
+
+| モデル | 向き | 備考 |
+|---|---|---|
+| `gpt-image-2` | 既定・実績あり | 透過背景は preview、`input_fidelity` は無視 |
+| `gpt-image-2.5-flare` | 日常用途（スライド挿絵など） | gpt-image-2 より高速・高品質とされる。`xhigh`/`max`・透過背景に対応 |
+| `gpt-image-2.5-sunburst` | 細部・編集の制御を重視する制作物 | `xhigh`/`max`・透過背景に対応 |
+
+再現性を固定したい案件ではスナップショット ID（`gpt-image-2-2026-04-21`、`gpt-image-2.5-flare-2026-09-08` 等）を `model` に渡す。
 
 ## 出力
 
@@ -71,6 +81,7 @@ CLI で単発実行（動作確認サンプル）:
 
 - **gemini-image と同時並列で実行しない**（並列時に Gemini 側がストールした実績あり）。複数モデルは逐次実行する
 - タイムアウト（`OPENAI_TIMEOUT_S` 既定180秒）・自動リトライ（`OPENAI_MAX_RETRIES` 既定3回）は `.env` で調整可
+- 既定モデルは `.env` の `OPENAI_IMAGE_MODEL` で切替可（例：`gpt-image-2.5-flare`）。コード側で `model=` を渡せばそちらが優先
 
 ## 認証
 

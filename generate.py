@@ -2,12 +2,15 @@
 GPT Image (OpenAI 画像生成) 基盤スクリプト
 
 使用モデル:
-  - gpt-image-2  (OpenAI 画像生成: 高品質・指示追従に強い)
+  - gpt-image-2            (既定。OpenAI 画像生成: 高品質・指示追従に強い)
+  - gpt-image-2.5-flare    (2026-09 追加。日常用途向け・gpt-image-2 より高速)
+  - gpt-image-2.5-sunburst (2026-09 追加。細部・編集の制御を重視する用途向け)
+  既定モデルは .env の OPENAI_IMAGE_MODEL で切り替えられる。
 
 呼び出し方は gemini-image/generate.py と揃えてある
 （generate_image / edit_image、output_dir / save_prompt / filename_prefix）。
 
-gpt-image-2 は任意解像度を "WIDTHxHEIGHT" で指定できる
+gpt-image-2 系（2.5 含む）は任意解像度を "WIDTHxHEIGHT" で指定できる
 （幅・高さとも16の倍数、アスペクト比 1:3〜3:1、総ピクセル数 655,360〜8,294,400、
 最大 3840x2160）。よく使う比率は SIZE_PRESETS のキー（"16:9" 等）で指定するのが簡単。
 """
@@ -29,7 +32,8 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 DEFAULT_TIMEOUT_S = float(os.environ.get("OPENAI_TIMEOUT_S", "180"))
 MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "3"))
 
-DEFAULT_MODEL = "gpt-image-2"
+# 既定モデル。.env の OPENAI_IMAGE_MODEL で上書き可（例: gpt-image-2.5-flare）
+DEFAULT_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2")
 
 # 比率名 → gpt-image-2 の実サイズ（すべて16の倍数）
 SIZE_PRESETS = {
@@ -49,6 +53,14 @@ DEFAULT_SIZE = "16:9"
 # gpt-image-1 系は固定サイズのみ（任意解像度は gpt-image-2 系のみ）
 _GPT_IMAGE_1_SIZES = {"1024x1024", "1536x1024", "1024x1536", "auto"}
 VALID_QUALITIES = {"low", "medium", "high", "auto"}
+# gpt-image-2.5 系のみ追加で指定できる品質（高コスト）
+_GPT_IMAGE_25_EXTRA_QUALITIES = {"xhigh", "max"}
+VALID_BACKGROUNDS = {"transparent", "opaque", "auto"}
+VALID_INPUT_FIDELITIES = {"high", "low"}
+
+
+def _is_gpt_image_25(model: str) -> bool:
+    return model.startswith("gpt-image-2.5")
 
 
 def _require_api_key() -> str:
@@ -103,14 +115,31 @@ def _resolve_size(size: str, model: str) -> str:
     if max(w, h) > 3840:
         raise ValueError(f"最大 3840x2160 までです: {s}")
     if w * h > 2560 * 1440:
-        print(f"[warn] {s} は 2560x1440 超のため experimental 帯です（gpt-image-2）")
+        print(f"[warn] {s} は 2560x1440 超のため experimental 帯です（{model}）")
     return s
 
 
-def _validate_quality(quality: str) -> str:
-    if quality not in VALID_QUALITIES:
-        raise ValueError(f"quality '{quality}' が不正です。有効値: {sorted(VALID_QUALITIES)}")
+def _validate_quality(quality: str, model: str) -> str:
+    valid = VALID_QUALITIES | _GPT_IMAGE_25_EXTRA_QUALITIES if _is_gpt_image_25(model) else VALID_QUALITIES
+    if quality not in valid:
+        hint = "（xhigh / max は gpt-image-2.5 系のみ）" if quality in _GPT_IMAGE_25_EXTRA_QUALITIES else ""
+        raise ValueError(f"quality '{quality}' が不正です。{model} の有効値: {sorted(valid)}{hint}")
     return quality
+
+
+def _validate_background(background: str | None, model: str) -> str | None:
+    if background is None:
+        return None
+    if background not in VALID_BACKGROUNDS:
+        raise ValueError(f"background '{background}' が不正です。有効値: {sorted(VALID_BACKGROUNDS)}")
+    if background == "transparent" and model.startswith("gpt-image-2") and not _is_gpt_image_25(model):
+        print(f"[warn] {model} の透過背景は preview 扱いです（安定して使うなら gpt-image-2.5 系）")
+    return background
+
+
+def _drop_none(**kwargs) -> dict:
+    """未指定（None）の任意パラメータは送らず API の既定値に任せる。"""
+    return {k: v for k, v in kwargs.items() if v is not None}
 
 
 def _sanitize_prefix(prefix: str) -> str:
@@ -127,6 +156,7 @@ def _save(
     model: str,
     size: str,
     quality: str,
+    background: str | None = None,
 ) -> list[Path]:
     if not data:
         raise RuntimeError("画像が生成されませんでした（APIレスポンスが空）")
@@ -152,7 +182,8 @@ def _save(
                 f"# 画像生成プロンプト\n\n"
                 f"- 生成日時: {timestamp}\n"
                 f"- モデル: {model}\n"
-                f"- サイズ: {size} / 品質: {quality}\n"
+                f"- サイズ: {size} / 品質: {quality}"
+                f"{f' / 背景: {background}' if background else ''}\n"
                 f"- 実寸: {actual}px\n"
                 f"- 画像: `{save_path.name}`\n\n"
                 f"## prompt\n\n{prompt}\n",
@@ -177,30 +208,33 @@ def generate_image(
     filename_prefix: str = "",
     output_dir: str | Path | None = None,
     save_prompt: bool = True,
+    *,
+    background: str | None = None,
 ) -> list[Path]:
     """テキストプロンプトから画像を生成する。
 
     Args:
         prompt: 画像生成プロンプト（日本語可）
-        model: 使用するモデルID（既定 gpt-image-2）
+        model: 使用するモデルID（既定 gpt-image-2。.env の OPENAI_IMAGE_MODEL で変更可）。
+               gpt-image-2.5-flare / gpt-image-2.5-sunburst も指定可
         size: プリセット名（"16:9"(既定)=2048x1152 / "slide"=2112x1280(PPT 30x18.2cm) /
               "3:2"=1536x1024 / "1:1" / "9:16" 等）、任意の "WIDTHxHEIGHT"（16の倍数・
               比率1:3〜3:1・総px 655,360〜8,294,400・最大3840x2160）、または "auto"
-        quality: "low" / "medium" / "high" / "auto"
+        quality: "low" / "medium" / "high" / "auto"。gpt-image-2.5 系は "xhigh" / "max" も可
         n: 生成枚数（1〜10）
         filename_prefix: 保存ファイル名の接頭辞
         output_dir: 出力先ディレクトリ。未指定なら既定の output/。
                     依頼元の関連ディレクトリを渡すと成果物をそこに置ける（~ 展開対応）
         save_prompt: True のとき、使用したプロンプトを画像と同名の .md で隣に残す
+        background: "transparent" / "opaque" / "auto"。未指定なら API 既定（auto）。
+                    透過は gpt-image-2.5 系で正式対応、gpt-image-2 は preview
 
     Returns:
         保存された画像ファイルのパスリスト
-
-    Note:
-        gpt-image-2 は透過背景（background="transparent"）と input_fidelity に非対応。
     """
     resolved_size = _resolve_size(size, model)
-    _validate_quality(quality)
+    _validate_quality(quality, model)
+    _validate_background(background, model)
     if not 1 <= n <= 10:
         raise ValueError(f"n は 1〜10 の範囲で指定してください: {n}")
     out_dir = _resolve_out_dir(output_dir)
@@ -211,9 +245,10 @@ def generate_image(
         size=resolved_size,
         quality=quality,
         n=n,
+        **_drop_none(background=background),
     )
     return _save(response.data, filename_prefix, out_dir, save_prompt,
-                 prompt, model, resolved_size, quality)
+                 prompt, model, resolved_size, quality, background)
 
 
 def edit_image(
@@ -227,6 +262,8 @@ def edit_image(
     filename_prefix: str = "edit",
     output_dir: str | Path | None = None,
     save_prompt: bool = True,
+    background: str | None = None,
+    input_fidelity: str | None = None,
 ) -> list[Path]:
     """既存の画像をプロンプトで編集する。
 
@@ -236,11 +273,14 @@ def edit_image(
         model: 使用するモデルID
         size: 出力サイズ。既定 "auto"（入力画像に合わせる）。
               generate_image と同じプリセット名・"WIDTHxHEIGHT" も指定可
-        quality: 出力品質
+        quality: 出力品質（gpt-image-2.5 系は "xhigh" / "max" も可）
         n: 生成枚数（1〜10）
         filename_prefix: 保存ファイル名の接頭辞
         output_dir: 出力先ディレクトリ（未指定なら既定の output/。~ 展開対応）
         save_prompt: True のとき、使用したプロンプトを画像と同名の .md で隣に残す
+        background: generate_image と同じ（"transparent" / "opaque" / "auto"）
+        input_fidelity: 入力画像への忠実度 "high" / "low"。未指定なら API 既定。
+                        対応モデルのみ有効（gpt-image-2 は無視する）
 
     Returns:
         保存された画像ファイルのパスリスト
@@ -250,7 +290,12 @@ def edit_image(
         raise FileNotFoundError(f"入力画像が見つかりません: {input_image_path}")
 
     resolved_size = _resolve_size(size, model)
-    _validate_quality(quality)
+    _validate_quality(quality, model)
+    _validate_background(background, model)
+    if input_fidelity is not None and input_fidelity not in VALID_INPUT_FIDELITIES:
+        raise ValueError(
+            f"input_fidelity '{input_fidelity}' が不正です。有効値: {sorted(VALID_INPUT_FIDELITIES)}"
+        )
     if not 1 <= n <= 10:
         raise ValueError(f"n は 1〜10 の範囲で指定してください: {n}")
     out_dir = _resolve_out_dir(output_dir)
@@ -263,9 +308,11 @@ def edit_image(
             size=resolved_size,
             quality=quality,
             n=n,
+            **_drop_none(background=background, input_fidelity=input_fidelity),
         )
     return _save(response.data, filename_prefix, out_dir, save_prompt,
-                 f"{prompt}\n\n（入力画像: {input_image_path}）", model, resolved_size, quality)
+                 f"{prompt}\n\n（入力画像: {input_image_path}）", model, resolved_size, quality,
+                 background)
 
 
 if __name__ == "__main__":
