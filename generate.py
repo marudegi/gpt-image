@@ -2,8 +2,8 @@
 GPT Image (OpenAI 画像生成) 基盤スクリプト
 
 使用モデル:
-  - gpt-image-2            (既定。OpenAI 画像生成: 高品質・指示追従に強い)
-  - gpt-image-2.5-flare    (2026-09 追加。日常用途向け・gpt-image-2 より高速)
+  - gpt-image-2.5-flare    (既定。2026-09 追加。日常用途向け・gpt-image-2 より高速)
+  - gpt-image-2            (旧既定。透過背景は preview、input_fidelity は無視)
   - gpt-image-2.5-sunburst (2026-09 追加。細部・編集の制御を重視する用途向け)
   既定モデルは .env の OPENAI_IMAGE_MODEL で切り替えられる。
 
@@ -32,8 +32,8 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 DEFAULT_TIMEOUT_S = float(os.environ.get("OPENAI_TIMEOUT_S", "180"))
 MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "3"))
 
-# 既定モデル。.env の OPENAI_IMAGE_MODEL で上書き可（例: gpt-image-2.5-flare）
-DEFAULT_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2")
+# 既定モデル。.env の OPENAI_IMAGE_MODEL で上書き可（例: gpt-image-2 に戻す）
+DEFAULT_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2.5-flare")
 
 # 比率名 → gpt-image-2 の実サイズ（すべて16の倍数）
 SIZE_PRESETS = {
@@ -215,8 +215,8 @@ def generate_image(
 
     Args:
         prompt: 画像生成プロンプト（日本語可）
-        model: 使用するモデルID（既定 gpt-image-2。.env の OPENAI_IMAGE_MODEL で変更可）。
-               gpt-image-2.5-flare / gpt-image-2.5-sunburst も指定可
+        model: 使用するモデルID（既定 gpt-image-2.5-flare。.env の OPENAI_IMAGE_MODEL で変更可）。
+               gpt-image-2.5-sunburst / gpt-image-2 も指定可
         size: プリセット名（"16:9"(既定)=2048x1152 / "slide"=2112x1280(PPT 30x18.2cm) /
               "3:2"=1536x1024 / "1:1" / "9:16" 等）、任意の "WIDTHxHEIGHT"（16の倍数・
               比率1:3〜3:1・総px 655,360〜8,294,400・最大3840x2160）、または "auto"
