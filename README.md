@@ -50,7 +50,7 @@ CLI で単発実行（動作確認サンプル）:
 | 項目 | 指定値 |
 |---|---|
 | `size` | プリセット名：`16:9`（既定＝2048x1152）／`slide`（＝2112x1280、PPT 30cm×18.2cm 全面貼付用）／`16:10`（＝2048x1280）／`3:2`（＝1536x1024）／`1:1`／`9:16`／`4:3`／`21:9` ほか。任意の `WIDTHxHEIGHT`（**16の倍数**・比率1:3〜3:1・総ピクセル数 655,360〜8,294,400・最大3840x2160）や `auto` も可 |
-| `quality` | `low` / `medium` / `high`（既定） / `auto`。gpt-image-2.5 系のみ `xhigh` / `max` も可（高コスト） |
+| `quality` | `low` / `medium` / `high` / `auto`、gpt-image-2.5 系のみ `xhigh` / `max` も可。既定は 2.5 系が `xhigh`、それ以外は `high`（`.env` の `OPENAI_IMAGE_QUALITY` で変更可） |
 | `n` | 生成枚数 1〜10 |
 | `model` | `gpt-image-2.5-flare`（既定。`.env` の `OPENAI_IMAGE_MODEL` で変更可）／`gpt-image-2.5-sunburst`／`gpt-image-2`。任意解像度は gpt-image-2 系（2.5 含む）のみ（gpt-image-1 は固定3サイズ＋auto） |
 | `output_dir` | 出力先。案件向けは依頼元の関連Dirを渡す（`~` 展開対応）。未指定なら `output/` |
@@ -66,6 +66,8 @@ CLI で単発実行（動作確認サンプル）:
 | `gpt-image-2.5-flare` | **既定**。日常用途（スライド挿絵など） | gpt-image-2 より高速・高品質とされる。`xhigh`/`max`・透過背景に対応 |
 | `gpt-image-2.5-sunburst` | 細部・編集の制御を重視する制作物 | `xhigh`/`max`・透過背景に対応 |
 | `gpt-image-2` | 旧既定（2026-09 まで） | 透過背景は preview、`input_fidelity` は無視 |
+
+既定品質を `xhigh` にしている理由：2.5 系は同じ名前の品質でも出力トークン（＝料金・精細さ）が旧モデルより少なめとされ、`xhigh` が旧既定（gpt-image-2 / high）と同程度のコスト感になる見込みのため（第三者情報からの目安・未検証）。重い・高いと感じたら `high`、文字や細部が足りなければその画像だけ `quality="max"` を試す。
 
 再現性を固定したい案件ではスナップショット ID（`gpt-image-2-2026-04-21`、`gpt-image-2.5-flare-2026-09-08` 等）を `model` に渡す。
 
@@ -99,7 +101,7 @@ CLI で単発実行（動作確認サンプル）:
 ## 運用の注意
 
 - **gemini-image と同時並列で実行しない**（並列時に Gemini 側がストールした実績あり）。複数モデルは逐次実行する
-- タイムアウト（`OPENAI_TIMEOUT_S` 既定180秒）・自動リトライ（`OPENAI_MAX_RETRIES` 既定3回）は `.env` で調整可
+- タイムアウト（`OPENAI_TIMEOUT_S` 既定300秒）・自動リトライ（`OPENAI_MAX_RETRIES` 既定3回）は `.env` で調整可
 - 既定モデルは `.env` の `OPENAI_IMAGE_MODEL` で切替可（例：旧既定に戻すなら `gpt-image-2`）。コード側で `model=` を渡せばそちらが優先
 
 ## 認証

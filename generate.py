@@ -29,7 +29,7 @@ load_dotenv(Path(__file__).parent / ".env")
 OUTPUT_DIR = Path(__file__).parent / "output"
 
 # 散発的なAPIストール対策：タイムアウト（秒）＋自動リトライ。環境変数で上書き可。
-DEFAULT_TIMEOUT_S = float(os.environ.get("OPENAI_TIMEOUT_S", "180"))
+DEFAULT_TIMEOUT_S = float(os.environ.get("OPENAI_TIMEOUT_S", "300"))  # xhigh 以上は生成が長めのため 300
 MAX_RETRIES = int(os.environ.get("OPENAI_MAX_RETRIES", "3"))
 
 # 既定モデル。.env の OPENAI_IMAGE_MODEL で上書き可（例: gpt-image-2 に戻す）
@@ -61,6 +61,14 @@ VALID_INPUT_FIDELITIES = {"high", "low"}
 
 def _is_gpt_image_25(model: str) -> bool:
     return model.startswith("gpt-image-2.5")
+
+
+def _default_quality(model: str) -> str:
+    """quality 未指定時の既定。.env の OPENAI_IMAGE_QUALITY があればそれを使う。
+
+    2.5 系は xhigh（旧既定 gpt-image-2 / high と同程度のコスト感で一段上の品質）、それ以外は high。
+    """
+    return os.environ.get("OPENAI_IMAGE_QUALITY") or ("xhigh" if _is_gpt_image_25(model) else "high")
 
 
 def _require_api_key() -> str:
@@ -203,7 +211,7 @@ def generate_image(
     prompt: str,
     model: str = DEFAULT_MODEL,
     size: str = DEFAULT_SIZE,
-    quality: str = "high",
+    quality: str | None = None,
     n: int = 1,
     filename_prefix: str = "",
     output_dir: str | Path | None = None,
@@ -220,7 +228,8 @@ def generate_image(
         size: プリセット名（"16:9"(既定)=2048x1152 / "slide"=2112x1280(PPT 30x18.2cm) /
               "3:2"=1536x1024 / "1:1" / "9:16" 等）、任意の "WIDTHxHEIGHT"（16の倍数・
               比率1:3〜3:1・総px 655,360〜8,294,400・最大3840x2160）、または "auto"
-        quality: "low" / "medium" / "high" / "auto"。gpt-image-2.5 系は "xhigh" / "max" も可
+        quality: "low" / "medium" / "high" / "auto"。gpt-image-2.5 系は "xhigh" / "max" も可。
+                 未指定なら 2.5 系は "xhigh"、それ以外は "high"（.env の OPENAI_IMAGE_QUALITY で変更可）
         n: 生成枚数（1〜10）
         filename_prefix: 保存ファイル名の接頭辞
         output_dir: 出力先ディレクトリ。未指定なら既定の output/。
@@ -233,7 +242,7 @@ def generate_image(
         保存された画像ファイルのパスリスト
     """
     resolved_size = _resolve_size(size, model)
-    _validate_quality(quality, model)
+    quality = _validate_quality(quality or _default_quality(model), model)
     _validate_background(background, model)
     if not 1 <= n <= 10:
         raise ValueError(f"n は 1〜10 の範囲で指定してください: {n}")
@@ -256,7 +265,7 @@ def edit_image(
     input_image_path: str | Path,
     model: str = DEFAULT_MODEL,
     size: str = "auto",
-    quality: str = "high",
+    quality: str | None = None,
     *,  # n 以降はキーワード指定のみ（旧シグネチャの位置引数と衝突させない）
     n: int = 1,
     filename_prefix: str = "edit",
@@ -273,7 +282,7 @@ def edit_image(
         model: 使用するモデルID
         size: 出力サイズ。既定 "auto"（入力画像に合わせる）。
               generate_image と同じプリセット名・"WIDTHxHEIGHT" も指定可
-        quality: 出力品質（gpt-image-2.5 系は "xhigh" / "max" も可）
+        quality: 出力品質。未指定なら generate_image と同じ既定（2.5 系は "xhigh"）
         n: 生成枚数（1〜10）
         filename_prefix: 保存ファイル名の接頭辞
         output_dir: 出力先ディレクトリ（未指定なら既定の output/。~ 展開対応）
@@ -290,7 +299,7 @@ def edit_image(
         raise FileNotFoundError(f"入力画像が見つかりません: {input_image_path}")
 
     resolved_size = _resolve_size(size, model)
-    _validate_quality(quality, model)
+    quality = _validate_quality(quality or _default_quality(model), model)
     _validate_background(background, model)
     if input_fidelity is not None and input_fidelity not in VALID_INPUT_FIDELITIES:
         raise ValueError(
