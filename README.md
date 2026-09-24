@@ -74,9 +74,11 @@ CLI で単発実行（動作確認サンプル）:
 同じお題を「モデル × 品質」で生成し、比較用の PowerPoint（30cm×18.2cm）にまとめます。
 
 ```bash
-.venv/bin/python compare_quality.py --dry-run   # 計画（枚数）だけ確認
-.venv/bin/python compare_quality.py             # 既定：3お題 × 6条件 = 18枚
+.venv/bin/python compare_quality.py --dry-run
+.venv/bin/python compare_quality.py
 ```
+
+1 行目は計画（枚数）の確認だけで生成しない。2 行目で生成（既定：3お題 × 6条件 = 18枚。実行前に確認あり、`-y` で省略）。
 
 - 既定の条件：`gpt-image-2 / high`（旧既定＝基準）と `gpt-image-2.5-flare` の `low`〜`max` 全品質
 - 既定のお題：日本語タイトル・図解（4ステップ）・写真リアル（`--prompts text,diagram` で絞り込み、`--prompt "…"` で任意のお題）
