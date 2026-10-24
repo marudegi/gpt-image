@@ -71,25 +71,6 @@ CLI で単発実行（動作確認サンプル）:
 
 再現性を固定したい案件ではスナップショット ID（`gpt-image-2-2026-04-21`、`gpt-image-2.5-flare-2026-09-08` 等）を `model` に渡す。
 
-## 品質比較（compare_quality.py）
-
-同じお題を「モデル × 品質」で生成し、比較用の PowerPoint（30cm×18.2cm）にまとめます。
-
-```bash
-.venv/bin/python compare_quality.py --dry-run
-.venv/bin/python compare_quality.py
-```
-
-1 行目は計画（枚数）の確認だけで生成しない。2 行目で生成（既定：3お題 × 6条件 = 18枚。実行前に確認あり、`-y` で省略）。
-
-- 既定の条件：`gpt-image-2 / high`（旧既定＝基準）と `gpt-image-2.5-flare` の `low`〜`max` 全品質
-- 既定のお題：日本語タイトル・図解（4ステップ）・写真リアル（`--prompts text,diagram` で絞り込み、`--prompt "…"` で任意のお題）
-- 条件の変更：`--variants 2:high,flare:high,sunburst:high`（略称 `2` / `flare` / `sunburst`、先頭が基準）
-- 出力：`output/compare_YYYYMMDD_HHMMSS/` に画像・`results.json`・`quality_compare.pptx`
-  - お題ごとに「一覧」→「条件ごとの全面表示（実際の貼り付けサイズ）」、最後に生成時間・出力トークンの表とグラフ
-- 途中で止まったら `--resume output/compare_…` で続きから（成功済みは再生成しない）。全部済みならスライドだけ作り直す
-- 生成時間を公平に比べるため 1 枚ずつ順番に実行（1 枚あたりタイムアウト既定 600 秒）。`max` を含むと時間・料金がかかるので、まず `--dry-run` で枚数を確認
-
 ## 出力
 
 生成画像は `YYYY.MM.DD_HHMMSS_prefix_00.png` 形式で保存されます。
